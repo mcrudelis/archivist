@@ -103,7 +103,9 @@ done <<< "$(grep "^exclude_backup=" "$config_file" | cut -d'=' -f2)"
 > "$script_dir/dir_list"
 while read backup
 do
-	size_splitter "${backup//\"/}" "$max_size" >> "$script_dir/dir_list"
+	if [ -n "$backup" ]; then
+		size_splitter "${backup//\"/}" "$max_size" >> "$script_dir/dir_list"
+	fi
 done <<< "$(grep "^file_to_backup=" "$config_file" | cut -d'=' -f2)"
 
 #=================================================
@@ -115,14 +117,15 @@ enc_backup_list="$backup_dir/enc_backup_list"
 # Verify the checksum of the password file.
 if ! sudo md5sum --status --check "$cryptpass.md5" 2> /dev/null
 then
-	echo "> Password has been changed."
+	if [ -e "$cryptpass.md5" ]; then
+		echo "> Password has been changed."
+	fi
 	# If the checksum is different, the password has been changed.
 	# Store the new checksum
 	sudo md5sum "$cryptpass" > "$cryptpass.md5"
 	# Then, purge the $enc_backup_list to regenerate all the encrypted path
 	> "$enc_backup_list"
 fi
-
 
 #=================================================
 # LIST OF ENCRYPTED FILES
@@ -172,6 +175,29 @@ print_encrypted_name () {
 		fi
 	fi
 }
+
+#=================================================
+# INIT AND USE ENCFS
+#=================================================
+
+mount_encrypt_directory () {
+	# Encrypt the whole directory with encfs.
+	sudo encfs --reverse --idle=5 --extpass="cat \"$cryptpass\"" --standard "$backup_dir" "$enc_backup_dir"
+	# Here we will use the reverse mode of encfs, that means the directory will be encrypted only to be send via rsync.
+}
+
+if [ "${encrypt,,}" == "true" ]
+then
+	# If there no encfs config file. encfs has to be initialized.
+	if [ ! -e "$backup_dir/.encfs6.xml" ]
+	then
+		mkdir -p "$enc_backup_dir"
+		# Mount the directory for the first time
+		mount_encrypt_directory
+		# Then unmount the directory
+		sudo umount "$enc_backup_dir"
+	fi
+fi
 
 #=================================================
 # COMPRESS WITH TAR.GZ
@@ -321,7 +347,7 @@ backup_checksum () {
 		then
 			echo ">> Make a real backup for $backup_name"
 			# Make a real backup
-			sudo yunohost backup delete "$backup_name" > /dev/null
+			sudo yunohost backup delete "$backup_name" > /dev/null 2>&1
 			$backup_command --name $backup_name > /dev/null
 
 			# Add this backup to the list
@@ -354,7 +380,7 @@ backup_checksum () {
 			then
 				echo ">>>> Make a real backup for $backup_name"
 				# Make a real backup
-				sudo yunohost backup delete "$backup_name" > /dev/null
+				sudo yunohost backup delete "$backup_name" > /dev/null 2>&1
 				$backup_command $app --name $backup_name > /dev/null
 
 				# Copy the backup
@@ -431,86 +457,89 @@ delete_option () {
 while read recipient
 do
 
-	#=================================================
-	# BUILD CONFIG FILE FOR EACH RECIPIENT
-	#=================================================
-
-	# Build the config file for this recipient
-	# Cut the line from the first line found by grep, until the end of the file
-	tail --lines=+$recipient "$config_file" > "$config_file_per_recipient"
-	# Ignore the first line, and try to find the next recipient name
-	next_recipient=$(tail --lines=+2 "$config_file_per_recipient" | grep --line-number --max-count=1 "^> recipient name=" | cut -d':' -f1)
-	# If there's another recipient
-	if [ -n "$next_recipient" ]
+	if [ -n "$recipient" ]
 	then
-		# Delete the lines from this recipient to the end
-		sed --in-place "$(( $next_recipient + 1 )),$ d" "$config_file_per_recipient"
-	fi
-	#=================================================
-	# BUILD LIST OF FILES FOR EACH RECIPIENT
-	#=================================================
+		#=================================================
+		# BUILD CONFIG FILE FOR EACH RECIPIENT
+		#=================================================
 
-	echo -e "\n-> Build the list of files for the recipient $(get_option_value "> recipient name")"
+		# Build the config file for this recipient
+		# Cut the line from the first line found by grep, until the end of the file
+		tail --lines=+$recipient "$config_file" > "$config_file_per_recipient"
+		# Ignore the first line, and try to find the next recipient name
+		next_recipient=$(tail --lines=+2 "$config_file_per_recipient" | grep --line-number --max-count=1 "^> recipient name=" | cut -d':' -f1)
+		# If there's another recipient
+		if [ -n "$next_recipient" ]
+		then
+			# Delete the lines from this recipient to the end
+			sed --in-place "$(( $next_recipient + 1 )),$ d" "$config_file_per_recipient"
+		fi
+		#=================================================
+		# BUILD LIST OF FILES FOR EACH RECIPIENT
+		#=================================================
 
-	include_files () {
-		# Get the corresponding files
+		echo -e "\n-> Build the list of files for the recipient $(get_option_value "> recipient name")"
+
+		include_files () {
+			# Get the corresponding files
+			if [ "${recipient_encrypt,,}" == "true" ]
+			then
+				# Keep only the encrypted names
+				grep "$1.*.tar.gz" "$enc_backup_list" | sed "s/.*://"
+			else
+				# Or only the clear names
+				grep "$1.*.tar.gz" "$enc_backup_list" | sed "s/:.*//"
+			fi
+		}
+
+		# Get the encrypt option for this recipient
+		recipient_encrypt=$(get_option_value "encrypt")
+		# Get the default value if there no specific option
+		recipient_encrypt=${recipient_encrypt:-$encrypt}
+
+		# Include files in the list
+		if grep --quiet "^include backup=" "$config_file_per_recipient"
+		then
+			> "$backup_list_per_recipient"
+			# Add corresponding files for each include option
+			while read include
+			do
+				delete_option "include backup"
+				include_files "$include" >> "$backup_list_per_recipient"
+			done <<< "$(grep "^include backup=" "$config_file_per_recipient" | cut -d'=' -f2)"
+		else
+			# If there's no include option, add all the files.
+			include_files ".*" > "$backup_list_per_recipient"
+		fi
+
+		# Exclude files from the list
+		# Remove corresponding files for each exclude option
+		while read exclude
+		do
+			delete_option "exclude backup"
+			if [ -n "$exclude" ]; then
+				sed --in-place "\@$exclude@d" "$backup_list_per_recipient"
+			fi
+		done <<< "$(grep "^exclude backup=" "$config_file_per_recipient" | cut -d'=' -f2)"
+
+		# Add backup source directory in the config file
 		if [ "${recipient_encrypt,,}" == "true" ]
 		then
-			# Keep only the encrypted names
-			grep "$1.*.tar.gz" "$enc_backup_list" | sed "s/.*://"
+			source_path="$enc_backup_dir"
 		else
-			# Or only the clear names
-			grep "$1.*.tar.gz" "$enc_backup_list" | sed "s/:.*//"
+			source_path="$backup_dir"
 		fi
-	}
+		echo "backup source=$source_path" >> "$config_file_per_recipient"
 
-	# Get the encrypt option for this recipient
-	recipient_encrypt=$(get_option_value "encrypt")
-	# Get the default value if there no specific option
-	recipient_encrypt=${recipient_encrypt:-$encrypt}
+		type=$(get_option_value "type")
+		delete_option "type"
 
-	# Include files in the list
-	if grep --quiet "^include backup=" "$config_file_per_recipient"
-	then
-		> "$backup_list_per_recipient"
-		# Add corresponding files for each include option
-		while read include
-		do
-			delete_option "include backup"
-			include_files "$include" >> "$backup_list_per_recipient"
-		done <<< "$(grep "^include backup=" "$config_file_per_recipient" | cut -d'=' -f2)"
-	else
-		# If there's no include option, add all the files.
-		include_files ".*" > "$backup_list_per_recipient"
+		# Remove unused options in the config file
+		sed --in-place "/^#/d" "$config_file_per_recipient"
+
+		# Call the script for given $type
+		"$script_dir/senders/$type.sender.sh"
 	fi
-
-	# Exclude files from the list
-	# Remove corresponding files for each exclude option
-	while read exclude
-	do
-		delete_option "exclude backup"
-		if [ -n "$exclude" ]; then
-			sed --in-place "\@$exclude@d" "$backup_list_per_recipient"
-		fi
-	done <<< "$(grep "^exclude backup=" "$config_file_per_recipient" | cut -d'=' -f2)"
-
-	# Add backup source directory in the config file
-	if [ "${recipient_encrypt,,}" == "true" ]
-	then
-		source_path="$enc_backup_dir"
-	else
-		source_path="$backup_dir"
-	fi
-	echo "backup source=$source_path" >> "$config_file_per_recipient"
-
-	type=$(get_option_value "type")
-	delete_option "type"
-
-	# Remove unused options in the config file
-	sed --in-place "/^#/d" "$config_file_per_recipient"
-
-	# Call the script for given $type
-	"$script_dir/senders/$type.sender.sh"
 
 done <<< "$(grep --line-number "^> recipient name=" "$config_file" | cut -d':' -f1)"
 
