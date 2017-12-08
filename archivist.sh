@@ -134,8 +134,6 @@ fi
 # Print the correspondances between clear file and encrypted file
 print_clear_encrypted () {
 	local backup="$1"
-	# Remove the name of the backup dir in the path
-	backup=${backup//"$backup_dir"/}
 	# Print the clear name of this directory
 	echo -n "$backup:" >> "$enc_backup_list"
 	# Get the parent directory
@@ -156,6 +154,9 @@ print_clear_encrypted () {
 print_encrypted_name () {
 	local backup="$1"
 	local mode="$2"
+
+	# Remove the name of the backup dir in the path
+	backup=${backup//"$backup_dir"/}
 
 	# Do nothing if 'encrypt' is not set.
 	if [ "${encrypt,,}" == "true" ]
@@ -373,6 +374,7 @@ backup_checksum () {
 		if [ -n "$app" ]
 		then
 			mkdir -p "$backup_dir/ynh_backup/"
+			print_encrypted_name "$backup_dir/ynh_backup" add
 			backup_name="${app}_backup"
 			backup_command="sudo yunohost backup create --ignore-system --apps"
 			# If the backup is different than the previous one
@@ -488,7 +490,7 @@ do
 				grep "$1.*.tar.gz" "$enc_backup_list" | sed "s/.*://"
 			else
 				# Or only the clear names
-				grep "$1.*.tar.gz" "$enc_backup_list" | sed "s/:.*//"
+				grep "$1.*.tar.gz" "$backup_dir/backup_list"
 			fi
 		}
 
