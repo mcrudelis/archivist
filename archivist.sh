@@ -308,7 +308,12 @@ backup_checksum () {
 	# Make a temporary backup
 	echo ">> Make a temporary backup for $backup_name"
 	sudo rm -rf "$temp_backup_dir"
-	$backup_cmd --no-compress --output-directory "$temp_backup_dir" --name $backup_name.temp > /dev/null
+	if ! $backup_cmd --no-compress --output-directory "$temp_backup_dir" --name $backup_name.temp > /dev/null
+	then
+		# If the backup fail, do not make a real backup
+		echo ">>> The temporary backup failed..."
+		return 1
+	fi
 	# Remove the info.json file
 	sudo rm "$temp_backup_dir/info.json"
 	# Make a checksum of each file in the directory, then a checksum of all these cheksums.
