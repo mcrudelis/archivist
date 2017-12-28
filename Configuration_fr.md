@@ -33,7 +33,7 @@ Par exemple, pour 2 wordpress différents:
 ynh_app_backup=wordpress
 ynh_app_backup=wordpress__2
 ```
-Vous pouvez lister toutes vos applications installées avec `sudo yunohost app list --installed | grep "id: "`
+Vous pouvez lister toutes vos applications installées avec `sudo yunohost app list --installed | grep "id: " | cut -d ':' -f2 | cut -c2-`
 
 * ### max_size=
 *Taille en Mo*  
