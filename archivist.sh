@@ -183,7 +183,7 @@ print_encrypted_name () {
 		# Remove a new line in $enc_backup_list
 		elif [ "$mode" == "del" ]
 		then
-			sudo sed --in-place "/^$backup:/d"  "$enc_backup_list"
+			sudo sed --in-place "\|^$backup:|d"  "$enc_backup_list"
 		fi
 	fi
 }
@@ -566,7 +566,7 @@ do
 		do
 			delete_option "exclude backup"
 			if [ -n "$exclude" ]; then
-				sed --in-place "\@$exclude@d" "$backup_list_per_recipient"
+				sed --in-place "\|$exclude|d" "$backup_list_per_recipient"
 			fi
 		done <<< "$(grep "^exclude backup=" "$config_file_per_recipient" | cut -d'=' -f2)"
 
