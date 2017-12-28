@@ -21,11 +21,15 @@ cryptpass="/file/which/contains/password"
 # Specific backup made by 'yunohost backup' command
 # ynh_core_backup=true/false: Make a backup of the core of YunoHost, without any apps.
 ynh_core_backup=true
+ynh_core_pre_backup=
+ynh_core_post_backup=
 
 # ynh_app_backup=APP: Make a backup of an app.
 # You can add as many lines as you want to save multiple apps.
 # List all apps with sudo yunohost app list --installed | grep "id: "
 # ynh_app_backup=wordpress
+ynh_app_pre_backup=
+ynh_app_post_backup=
 ynh_app_backup=
 
 # --------------------------------------------------------------------------------------
@@ -44,6 +48,8 @@ max_size=500
 # exclude_backup="/directory/to exclude"
 # exclude_backup=/file/to exclude
 # exclude_backup="/exclude/all/tarball/in_this_directory/.tar.gz$"
+files_pre_backup=
+files_post_backup=
 file_to_backup=
 exclude_backup=
 
@@ -63,6 +69,8 @@ exclude_backup=
 # type=local
 # destination directory=/my/local/backup
 # encrypt=false
+# pre_backup=
+# post_backup=
 # exclude backup=/exclude/dir
 # include backup=
 
@@ -76,5 +84,7 @@ exclude_backup=
 # ssh_key=/home/user/.ssh/id_rsa
 # ssh_pwd=
 # ssh_options=
+# pre_backup=
+# post_backup=
 # exclude backup=/exclude/dir
 # include backup=

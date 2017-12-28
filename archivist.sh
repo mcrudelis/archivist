@@ -25,6 +25,17 @@ max_size=$(grep -m1 "^max_size=" "$config_file" | cut -d'=' -f2)
 date
 
 #=================================================
+# EXEC PRE AND POST BACKUP
+#=================================================
+
+exec_pre_post_backup () {
+	local exec_command="$1"
+	local local_config_file="$2"
+	local line_to_exec="$(grep -m1 "^$exec_command=" "$local_config_file" | cut -d'=' -f2)"
+	eval $line_to_exec
+}
+
+#=================================================
 # SPLIT THE DIRECTORIES
 #=================================================
 
@@ -229,11 +240,17 @@ echo "> Compress backups"
 
 # Purge the list of backup files
 > "$backup_dir/backup_list"
+pre_backup=0
 
 # Check each directory or files to backup from the list builded by size_splitter
 # For each file/directory, verify the checksum then create a backup with tar.
 while read backup
 do
+	if [ $pre_backup -eq 0 ]
+	then
+		exec_pre_post_backup "files_pre_backup" "$config_file"
+		pre_backup=1
+	fi
 
 	echo -n "."
 	# If the path is preceed by "files:", backup only the files in this directory
@@ -295,6 +312,12 @@ do
 done < "$script_dir/dir_list"
 echo ""
 
+if [ $pre_backup -eq 1 ]
+then
+	exec_pre_post_backup "files_post_backup" "$config_file"
+	pre_backup=0
+fi
+
 #=================================================
 # YUNOHOST BACKUPS
 #=================================================
@@ -343,6 +366,8 @@ backup_checksum () {
 
 	if [ "${ynh_core_backup,,}" == "true" ]
 	then
+		exec_pre_post_backup "ynh_core_pre_backup" "$config_file"
+
 		mkdir -p "$backup_dir/ynh_backup"
 		print_encrypted_name "$backup_dir/ynh_backup" add
 		backup_name="ynh_core_backup"
@@ -368,16 +393,25 @@ backup_checksum () {
 		fi
 		# Add this backup to the list
 		echo "/ynh_backup/$backup_name.tar.gz" >> "$backup_dir/backup_list"
+
+		exec_pre_post_backup "ynh_core_post_backup" "$config_file"
 	fi
 
 	#=================================================
 	# YUNOHOST APPS BACKUPS
 	#=================================================
 
+	pre_backup=0
 	while read app
 	do
 		if [ -n "$app" ]
 		then
+			if [ $pre_backup -eq 0 ]
+			then
+				exec_pre_post_backup "ynh_app_pre_backup" "$config_file"
+				pre_backup=1
+			fi
+
 			mkdir -p "$backup_dir/ynh_backup/"
 			print_encrypted_name "$backup_dir/ynh_backup" add
 			backup_name="${app}_backup"
@@ -401,6 +435,12 @@ backup_checksum () {
 			echo "/ynh_backup/$backup_name.tar.gz" >> "$backup_dir/backup_list"
 		fi
 	done <<< "$(grep "^ynh_app_backup=" "$config_file" | cut -d'=' -f2)"
+
+	if [ $pre_backup -eq 1 ]
+	then
+		exec_pre_post_backup "ynh_app_post_backup" "$config_file"
+		pre_backup=0
+	fi
 
 #=================================================
 # REMOVE OLD BACKUPS
@@ -481,6 +521,7 @@ do
 			# Delete the lines from this recipient to the end
 			sed --in-place "$(( $next_recipient + 1 )),$ d" "$config_file_per_recipient"
 		fi
+
 		#=================================================
 		# BUILD LIST OF FILES FOR EACH RECIPIENT
 		#=================================================
@@ -544,11 +585,14 @@ do
 		# Remove unused options in the config file
 		sed --in-place "/^#/d" "$config_file_per_recipient"
 
+		exec_pre_post_backup "pre_backup" "$config_file_per_recipient"
+
 		# Call the script for given $type
 		"$script_dir/senders/$type.sender.sh"
+
+		exec_pre_post_backup "post_backup" "$config_file_per_recipient"
 	fi
 
 done <<< "$(grep --line-number "^> recipient name=" "$config_file" | cut -d':' -f1)"
-
 
 date
