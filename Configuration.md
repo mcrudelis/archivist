@@ -85,6 +85,22 @@ Use this option to declare a new place where your backup will be send.
   You can add as many line as you want.
 
 ---
+## Pre and post backup commands
+
+Before and after each kind of backup, you can execute a command or a script.  
+For example for the core of YunoHost, you can use these commands:
+```
+ynh_core_pre_backup=command to execute before the backup of the core.
+ynh_core_post_backup=/path/to/a/script to execute after the backup of the core.
+```
+
+There're different pre and post instructions for each kind of backup.
+- For core of YunoHost, use `ynh_core_pre_backup` and `ynh_core_post_backup`.
+- For apps, use `ynh_app_pre_backup` and `ynh_app_post_backup`.
+- For files and directories, use `files_pre_backup` and `files_post_backup`.
+- And for each recipient, you can use `pre_backup` and `post_backup`.
+
+---
 
 ## Senders
 

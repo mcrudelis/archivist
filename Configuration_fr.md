@@ -85,6 +85,22 @@ Utiliser cette option pour déclarer un nouvel espace où envoyer vos sauvegarde
   Vous pouvez ajouter autant de ligne que vous le souhaitez.
 
 ---
+## Commandes Pre et post backup
+
+Avant et après chaque type de backup, vous pouvez exécuter une commande ou un script.  
+Par exemple pour le coeur de YunoHost, vous pouvez utiliser ces commandes:
+```
+ynh_core_pre_backup=commande à exécuter avant le backup du coeur.
+ynh_core_post_backup=/chemin/du/script à exécuter après le backup du coeur.
+```
+
+Il y a différentes instructions pre et post pour chaque type de backup.
+- Pour le coeur de YunoHost, utilisez `ynh_core_pre_backup` et `ynh_core_post_backup`.
+- Pour les applications, utilisez `ynh_app_pre_backup` et `ynh_app_post_backup`.
+- Pour les fichiers et les dossiers, utilisez `files_pre_backup` et `files_post_backup`.
+- Et pour chaque destinataire, vous pouvez utiliser `pre_backup` et `post_backup`.
+
+---
 
 ## Senders
 
