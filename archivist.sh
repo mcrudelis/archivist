@@ -372,7 +372,13 @@ backup_checksum () {
 		print_encrypted_name "$backup_dir/ynh_backup" add
 		backup_name="ynh_core_backup"
 		backup_hooks="conf_ldap conf_ssh conf_ynh_mysql conf_ssowat conf_ynh_firewall conf_ynh_certs data_mail conf_xmpp conf_nginx conf_cron conf_ynh_currenthost"
-		backup_command="sudo yunohost backup create --ignore-apps --system $backup_hooks"
+		if [ "$(lsb_release --codename --short)" = "jessie" ]
+		then
+			backup_ignore="--ignore-apps"
+		else
+			backup_ignore=""
+		fi
+		backup_command="sudo yunohost backup create $backup_ignore --system $backup_hooks"
 		# If the backup is different than the previous one
 		if backup_checksum "$backup_command"
 		then
@@ -415,7 +421,13 @@ backup_checksum () {
 			mkdir -p "$backup_dir/ynh_backup/"
 			print_encrypted_name "$backup_dir/ynh_backup" add
 			backup_name="${app}_backup"
-			backup_command="sudo yunohost backup create --ignore-system --apps"
+			if [ "$(lsb_release --codename --short)" = "jessie" ]
+			then
+				backup_ignore="--ignore-system"
+			else
+				backup_ignore=""
+			fi
+			backup_command="sudo yunohost backup create $backup_ignore --apps"
 			# If the backup is different than the previous one
 			if backup_checksum "$backup_command $app"
 			then
