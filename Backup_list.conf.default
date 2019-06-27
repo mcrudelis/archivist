@@ -88,3 +88,13 @@ exclude_backup=
 # post_backup=
 # exclude backup=/exclude/dir
 # include backup=
+
+# > recipient name=b2 example
+# type=b2
+# destination directory=backup
+# encrypt=false
+# b2_bucket=my-bucket
+# pre_backup=
+# post_backup=
+# exclude backup=/exclude/dir
+# include backup=
