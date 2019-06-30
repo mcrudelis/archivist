@@ -135,3 +135,12 @@ Send the backups in a distant ssh filesystem by using rsync.
     * **ssh_options=**  
     *Optionnal parameter*  
     Any other ssh options.
+
+* ### `b2`
+Send the backups to a Backblaze b2 bucket using the b2 command line tool.
+> You need to have the [b2 tool installed](https://www.backblaze.com/b2/docs/quick_command_line.html),
+> After installing you need to authenticate the b2 tool by running `b2 authorize-account` as root.
+
+  * #### Specific options:
+    * **b2_bucket=**  
+    The name of the b2 bucket to send your backup to.
