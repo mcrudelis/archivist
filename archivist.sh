@@ -488,6 +488,9 @@ if [ "${encrypt,,}" == "true" ]
 then
 	echo "> Encrypt backups"
 
+	# Recreate the directory in case it doesn't exist anymore.
+	mkdir -p "$enc_backup_dir"
+
 	# Encrypt the whole directory with encfs.
 	sudo encfs --reverse --idle=5 --extpass="cat \"$cryptpass\"" --standard "$backup_dir" "$enc_backup_dir"
 	# Here we will use the reverse mode of encfs, that means the directory will be encrypted only to be send via rsync.
