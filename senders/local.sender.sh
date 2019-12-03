@@ -74,3 +74,12 @@ sudo rsync --archive --verbose --human-readable --stats --itemize-changes \
 # Because rsync can't remove files if it's usinga file list.
 # We're using a standard rsync with a --exclude-from list.
 # And, in addition, we're using --delete-excluded to remove all exluded files, and --prune-empty-dirs to remove also empty directories.
+
+#=================================================
+# SEND .ENCFS6.XML TO THE RECIPIENT
+#=================================================
+
+if [ "$(get_option_value "encrypt")" == "true" ]
+then
+    sudo rsync "$(get_option_value "encfs6")" "$dest_directory"
+fi

@@ -504,6 +504,12 @@ then
     # Encrypt the whole directory with encfs.
     sudo encfs --reverse --idle=5 --extpass="cat \"$cryptpass\"" --standard "$backup_dir" "$enc_backup_dir"
     # Here we will use the reverse mode of encfs, that means the directory will be encrypted only to be send via rsync.
+
+    # Duplicate the .encfs6.xml file
+    sudo cp "$backup_dir/.encfs6.xml" "$backup_dir/.encfs6.xml.encrypted"
+    # And encrypt it with ccrypt.
+    sudo ccrypt --encrypt --keyfile "$cryptpass" --force "$backup_dir/.encfs6.xml.encrypted"
+
 fi
 
 #=================================================
@@ -569,6 +575,15 @@ do
         recipient_encrypt=$(get_option_value "encrypt")
         # Get the default value if there no specific option
         recipient_encrypt=${recipient_encrypt:-$encrypt}
+        # Force the value of encrypt to be into the config file
+        if [ -z "$(get_option_value "encrypt")" ]
+        then
+            echo "encrypt=$recipient_encrypt" >> "$config_file_per_recipient"
+            if [ "$recipient_encrypt" == "true" ]
+            then
+                echo "encfs6=$backup_dir/.encfs6.xml.encrypted.cpt" >> "$config_file_per_recipient"
+            fi
+        fi
 
         # Include files in the list
         if grep --quiet "^include backup=" "$config_file_per_recipient"
