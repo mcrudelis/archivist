@@ -28,6 +28,8 @@ ynh_core_post_backup=
 # You can add as many lines as you want to save multiple apps.
 # List all apps with sudo yunohost app list --installed | grep "id: "
 # ynh_app_backup=wordpress
+# If you don't want an app with a lot of data to backup those big files, please add 'do_not_backup_data' after the app name.
+# ynh_app_backup=transmission do_not_backup_data
 ynh_app_pre_backup=
 ynh_app_post_backup=
 ynh_app_backup=

@@ -418,6 +418,16 @@ backup_checksum () {
 				pre_backup=1
 			fi
 
+            # Handle 'do_not_backup_data' after the app name.
+            if echo "$app" | grep --quiet "do_not_backup_data"
+            then
+                do_not_backup_data=1
+            else
+                do_not_backup_data=0
+            fi
+            # Remove 'do_not_backup_data' mention (if there are) after the app name
+            app=${app%% *}
+
 			mkdir -p "$backup_dir/ynh_backup/"
 			print_encrypted_name "$backup_dir/ynh_backup" add
 			backup_name="${app}_backup"
@@ -427,7 +437,7 @@ backup_checksum () {
 			else
 				backup_ignore=""
 			fi
-			backup_command="sudo yunohost backup create $backup_ignore --apps"
+			backup_command="sudo BACKUP_CORE_ONLY=$do_not_backup_data yunohost backup create $backup_ignore --apps"
 			# If the backup is different than the previous one
 			if backup_checksum "$backup_command $app"
 			then
