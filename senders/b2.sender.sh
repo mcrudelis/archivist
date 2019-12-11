@@ -75,7 +75,7 @@ exclude_list=${exclude_list::-1}
 
 echo "> Copy backups files to b2://$b2_bucket/$dest_directory."
 
-b2 sync --excludeRegex "$exclude_list" $backup_source b2://$b2_bucket/$dest_directory
+b2 sync --noProgress --delete --excludeRegex "$exclude_list" $backup_source b2://$b2_bucket/$dest_directory
 
 #=================================================
 # SEND .ENCFS6.XML TO THE RECIPIENT
@@ -83,5 +83,5 @@ b2 sync --excludeRegex "$exclude_list" $backup_source b2://$b2_bucket/$dest_dire
 
 if [ "$(get_option_value "encrypt")" == "true" ]
 then
-    b2 sync "$(get_option_value "encfs6")" b2://$b2_bucket/$dest_directory
+    b2 sync --noProgress --delete "$(get_option_value "encfs6")" b2://$b2_bucket/$dest_directory
 fi
