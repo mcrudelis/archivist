@@ -579,10 +579,11 @@ do
         if [ -z "$(get_option_value "encrypt")" ]
         then
             echo "encrypt=$recipient_encrypt" >> "$config_file_per_recipient"
-            if [ "$recipient_encrypt" == "true" ]
-            then
-                echo "encfs6=$backup_dir/.encfs6.xml.encrypted.cpt" >> "$config_file_per_recipient"
-            fi
+        fi
+
+        if [ "$recipient_encrypt" == "true" ]
+        then
+            echo "encfs6=$backup_dir/.encfs6.xml.encrypted.cpt" >> "$config_file_per_recipient"
         fi
 
         # Include files in the list

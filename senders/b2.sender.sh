@@ -73,9 +73,9 @@ exclude_list=${exclude_list::-1}
 # SEND ARCHIVES TO THE RECIPIENT
 #=================================================
 
-echo "> Copy backups files to b2://$b2_bucket/$dest_directory."
+echo "> Copy backups files to b2://$b2_bucket/$dest_directory/archivist"
 
-b2 sync --noProgress --delete --excludeRegex "$exclude_list" $backup_source b2://$b2_bucket/$dest_directory
+b2 sync --noProgress --delete --excludeRegex "$exclude_list" $backup_source b2://$b2_bucket/$dest_directory/archivist
 
 #=================================================
 # SEND .ENCFS6.XML TO THE RECIPIENT
@@ -83,5 +83,12 @@ b2 sync --noProgress --delete --excludeRegex "$exclude_list" $backup_source b2:/
 
 if [ "$(get_option_value "encrypt")" == "true" ]
 then
-    b2 sync --noProgress --delete "$(get_option_value "encfs6")" b2://$b2_bucket/$dest_directory
+    if [ -z "$(get_option_value "encfs6")" ]
+    then
+      echo "ERROR: encyption configured but encfs6 is empty!"
+    else
+      echo "> Copy encfs6 file to b2://$b2_bucket/$dest_directory/.encfs6.xml.encrypted.cpt"
+
+      b2 upload-file --noProgress $b2_bucket "$(get_option_value "encfs6")" $dest_directory/.encfs6.xml.encrypted.cpt
+    fi
 fi
