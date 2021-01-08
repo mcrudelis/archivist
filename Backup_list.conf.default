@@ -14,6 +14,35 @@ encrypt=true
 # This file should be set at chmod 400
 cryptpass="/file/which/contains/password"
 
+# Compression algorithm to use
+# gzip
+#   Standard compression algorithm.
+#   Fast and light on ressources.
+# lzop
+#   Very fast algorithm.
+#   Low efficency
+# zstd
+#   Zstandard algorithm
+#   Similar to gzip but faster
+# bzip2
+#   Very slow but very effective.
+#   Light on ressources.
+# lzma
+#   Faster than bzip2 and even more effective.
+#   But demanding in resources.
+# lzip
+#   Similar to lzma.
+# xz
+#   Similar to lzma but more recent.
+#
+# none
+#   No compression
+#   Concatenation in a tar file only
+#
+# Default: gzip
+ynh_compression_mode=gzip
+files_compression_mode=gzip
+
 # --------------------------------------------------------------------------------------
 ## YUNOHOST BACKUPS
 
