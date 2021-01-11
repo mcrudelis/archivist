@@ -11,6 +11,7 @@ script_dir="$(dirname $(realpath $0))"
 #=================================================
 
 config_file="$script_dir/Backup_list.conf"
+compression_modes="$script_dir/compression_modes"
 
 backup_dir="$(grep -m1 "^backup_dir=" "$config_file" | cut -d'=' -f2)"
 # Remove double quote, if there are.
@@ -21,15 +22,26 @@ encrypt=$(grep -m1 "^encrypt=" "$config_file" | cut -d'=' -f2)
 cryptpass="$(grep -m1 "^cryptpass=" "$config_file" | cut -d'=' -f2)"
 cryptpass=${cryptpass//\"/}
 max_size=$(grep -m1 "^max_size=" "$config_file" | cut -d'=' -f2)
-ynh_compression_mode=$(grep -m1 "ynh_compression_mode=" "$config_file" | cut -d'=' -f2)
-files_compression_mode=$(grep -m1 "files_compression_mode=" "$config_file" | cut -d'=' -f2)
+ynh_compression_mode=$(grep -m1 "^ynh_compression_mode=" "$config_file" | cut -d'=' -f2)
+files_compression_mode=$(grep -m1 "^files_compression_mode=" "$config_file" | cut -d'=' -f2)
 
 date
 
 #=================================================
-# Compression format
+# COMPRESSION FORMAT
 #=================================================
 
+# Get the previous compression formats
+if [ -e "$compression_modes" ]
+then
+    previous_ynh_compression_mode=$(grep -m1 "^ynh_compression_mode=" "$compression_modes" | cut -d'=' -f2)
+    previous_files_compression_mode=$(grep -m1 "^files_compression_mode=" "$compression_modes" | cut -d'=' -f2)
+else
+    previous_ynh_compression_mode=gzip
+    previous_files_compression_mode=gzip
+fi
+
+ynh_force_backup=0
 if [ "$ynh_compression_mode" == "gzip" ]; then
     ynh_compression_suffix=tar.gz
 elif [ "$ynh_compression_mode" == "lzop" ]; then
@@ -52,7 +64,16 @@ else
     ynh_compression_mode=gzip
     ynh_compression_suffix=tar.gz
 fi
+echo "ynh_compression_mode=$ynh_compression_mode" > "$compression_modes"
 
+# If the compression format has changed, force new backups
+if [ "$previous_ynh_compression_mode" != "$ynh_compression_mode" ]
+then
+    echo "> WARNING: Compression format has been modified for YunoHost backups. All backups will be rebuilt"
+    ynh_force_backup=1
+fi
+
+files_force_backup=0
 if [ "$files_compression_mode" == "gzip" ]; then
     files_compression_suffix=tar.gz
 elif [ "$files_compression_mode" == "lzop" ]; then
@@ -75,6 +96,14 @@ else
     echo "Fall back to gzip."
     files_compression_mode=gzip
     files_compression_suffix=tar.gz
+fi
+echo "files_compression_mode=$files_compression_mode" >> "$compression_modes"
+
+# If the compression format has changed, force new backups
+if [ "$previous_files_compression_mode" != "$files_compression_mode" ]
+then
+    echo "> WARNING: Compression format has been modified for files and directories. All backups will be rebuilt"
+    files_force_backup=1
 fi
 
 #=================================================
@@ -342,7 +371,7 @@ do
     # Get the previous checksum
     old_checksum=$(cat "$backup_dir/$backup.md5" 2> /dev/null)
     # Then compare the 2 checksum
-    if [ "$new_checksum" == "$old_checksum" ] && [ -e "$backup_dir/$backup.$files_compression_suffix" ]
+    if [ "$new_checksum" == "$old_checksum" ] && [ -e "$backup_dir/$backup.$files_compression_suffix" ] && [ $files_force_backup -eq 0 ] 
     then
         continue
     else
@@ -400,7 +429,7 @@ backup_checksum () {
     # Get the previous checksum
     local old_checksum=$(cat "$backup_dir/ynh_backup/$backup_name.md5" 2> /dev/null)
     # And compare the 2 checksum
-    if [ "$new_checksum" == "$old_checksum" ]
+    if [ "$new_checksum" == "$old_checksum" ] && [ $ynh_force_backup -eq 0 ]
     then
         echo ">>> This backup is the same than the previous one"
         return 1
@@ -548,7 +577,7 @@ do
         # And remove the encrypted name of this backup in the list
         print_encrypted_name "$backup_dir$backup" del
     fi
-done <<< "$(sudo find $backup_dir -name "*.[$ynh_compression_suffix|$files_compression_suffix]")"
+done <<< "$(sudo find $backup_dir -name "*.tar*")"
 
 # Then remove empty directories
 sudo find "$backup_dir" -type d -empty -delete -exec echo "Delete empty directory '{}'" \;
@@ -627,10 +656,10 @@ do
             if [ "${recipient_encrypt,,}" == "true" ]
             then
                 # Keep only the encrypted names
-                grep "$1.*.[$ynh_compression_suffix|$files_compression_suffix]" "$enc_backup_list" | sed "s/.*://"
+                grep "$1.*.tar*" "$enc_backup_list" | sed "s/.*://"
             else
                 # Or only the clear names
-                grep "$1.*.[$ynh_compression_suffix|$files_compression_suffix]" "$backup_dir/backup_list"
+                grep "$1.*.tar*" "$backup_dir/backup_list"
             fi
         }
 
