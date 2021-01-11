@@ -20,6 +20,9 @@ Le fichier qui contient le mot de passe pour le chiffrage.
 Ce fichier devrait être réglé sur un chmod 400 pour restreindre sa lecture à root seulement.  
 Pas nécessaire si encrypt n'est pas réglé à true.
 
+* ### ynh_compression_mode= et files_compression_mode=
+Permet de choisir les formats de compressions pour les sauvegardes YunoHost et les sauvegardes de fichiers et de répertoires.
+
 * ### ynh_core_backup=
 *true or false*  
 Créer une sauvegarde du coeur de YunoHost avec `yunohost backup create --ignore-app`

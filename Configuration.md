@@ -20,6 +20,9 @@ The file which contains the password for encryption.
 This file should be set at chmod 400 to restrict the read access only to root.  
 Not needed if encrypt is not set to true.
 
+* ### ynh_compression_mode= and files_compression_mode=
+Allow to choose the compression formats to use for YunoHost backups and files and directories backups.
+
 * ### ynh_core_backup=
 *true or false*  
 Make a backup of the core of YunoHost with `yunohost backup create --ignore-app`
