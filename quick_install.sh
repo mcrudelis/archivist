@@ -32,7 +32,7 @@ sudo git clone https://github.com/maniackcrudelis/archivist "$final_path"
 # INSTALL DEPENDENCIES
 #=================================================
 
-sudo apt-get install rsync encfs sshpass ccrypt
+sudo apt-get install rsync encfs sshpass ccrypt lzop zstd lzip
 
 #=================================================
 # SETUP LOGROTATE

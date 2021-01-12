@@ -11,6 +11,7 @@ script_dir="$(dirname $(realpath $0))"
 #=================================================
 
 config_file="$script_dir/Backup_list.conf"
+compression_modes="$script_dir/compression_modes"
 
 backup_dir="$(grep -m1 "^backup_dir=" "$config_file" | cut -d'=' -f2)"
 # Remove double quote, if there are.
@@ -21,8 +22,89 @@ encrypt=$(grep -m1 "^encrypt=" "$config_file" | cut -d'=' -f2)
 cryptpass="$(grep -m1 "^cryptpass=" "$config_file" | cut -d'=' -f2)"
 cryptpass=${cryptpass//\"/}
 max_size=$(grep -m1 "^max_size=" "$config_file" | cut -d'=' -f2)
+ynh_compression_mode=$(grep -m1 "^ynh_compression_mode=" "$config_file" | cut -d'=' -f2)
+files_compression_mode=$(grep -m1 "^files_compression_mode=" "$config_file" | cut -d'=' -f2)
 
 date
+
+#=================================================
+# COMPRESSION FORMAT
+#=================================================
+
+# Get the previous compression formats
+if [ -e "$compression_modes" ]
+then
+    previous_ynh_compression_mode=$(grep -m1 "^ynh_compression_mode=" "$compression_modes" | cut -d'=' -f2)
+    previous_files_compression_mode=$(grep -m1 "^files_compression_mode=" "$compression_modes" | cut -d'=' -f2)
+else
+    previous_ynh_compression_mode=gzip
+    previous_files_compression_mode=gzip
+fi
+
+ynh_force_backup=0
+if [ "$ynh_compression_mode" == "gzip" ]; then
+    ynh_compression_suffix=tar.gz
+elif [ "$ynh_compression_mode" == "lzop" ]; then
+    ynh_compression_suffix=tar.lzo
+elif [ "$ynh_compression_mode" == "zstd" ]; then
+    ynh_compression_suffix=tar.zst
+elif [ "$ynh_compression_mode" == "bzip2" ]; then
+    ynh_compression_suffix=tar.bz2
+elif [ "$ynh_compression_mode" == "lzma" ]; then
+    ynh_compression_suffix=tar.lzma
+elif [ "$ynh_compression_mode" == "lzip" ]; then
+    ynh_compression_suffix=tar.lz
+elif [ "$ynh_compression_mode" == "xz" ]; then
+    ynh_compression_suffix=tar.xz
+elif [ "$ynh_compression_mode" == "none" ]; then
+    ynh_compression_suffix=tar
+else
+    echo "Error: Compression format not recognized for ynh_compression_mode !"
+    echo "Fall back to gzip."
+    ynh_compression_mode=gzip
+    ynh_compression_suffix=tar.gz
+fi
+echo "ynh_compression_mode=$ynh_compression_mode" > "$compression_modes"
+
+# If the compression format has changed, force new backups
+if [ "$previous_ynh_compression_mode" != "$ynh_compression_mode" ]
+then
+    echo "> WARNING: Compression format has been modified for YunoHost backups. All backups will be rebuilt"
+    ynh_force_backup=1
+fi
+
+files_force_backup=0
+if [ "$files_compression_mode" == "gzip" ]; then
+    files_compression_suffix=tar.gz
+elif [ "$files_compression_mode" == "lzop" ]; then
+    files_compression_suffix=tar.lzo
+elif [ "$files_compression_mode" == "zstd" ]; then
+    files_compression_suffix=tar.zst
+elif [ "$files_compression_mode" == "bzip2" ]; then
+    files_compression_suffix=tar.bz2
+elif [ "$files_compression_mode" == "lzma" ]; then
+    files_compression_suffix=tar.lzma
+elif [ "$files_compression_mode" == "lzip" ]; then
+    files_compression_suffix=tar.lz
+elif [ "$files_compression_mode" == "xz" ]; then
+    files_compression_suffix=tar.xz
+elif [ "$files_compression_mode" == "none" ]; then
+    files_compression_suffix=tar
+    files_compression_mode=""
+else
+    echo "Error: Compression format not recognized for files_compression_mode !"
+    echo "Fall back to gzip."
+    files_compression_mode=gzip
+    files_compression_suffix=tar.gz
+fi
+echo "files_compression_mode=$files_compression_mode" >> "$compression_modes"
+
+# If the compression format has changed, force new backups
+if [ "$previous_files_compression_mode" != "$files_compression_mode" ]
+then
+    echo "> WARNING: Compression format has been modified for files and directories. All backups will be rebuilt"
+    files_force_backup=1
+fi
 
 #=================================================
 # EXEC PRE AND POST BACKUP
@@ -212,7 +294,7 @@ then
 fi
 
 #=================================================
-# COMPRESS WITH TAR.GZ
+# COMPRESS FILES
 #=================================================
 
 # Create directories recursively and keep their attributes
@@ -284,12 +366,12 @@ do
     directories_hierarchy "$backup"
 
     # Build a list of each backup
-    echo "$backup.tar.gz" >> "$backup_dir/backup_list"
+    echo "$backup.$files_compression_suffix" >> "$backup_dir/backup_list"
 
     # Get the previous checksum
     old_checksum=$(cat "$backup_dir/$backup.md5" 2> /dev/null)
     # Then compare the 2 checksum
-    if [ "$new_checksum" == "$old_checksum" ] && [ -e "$backup_dir/$backup.tar.gz" ]
+    if [ "$new_checksum" == "$old_checksum" ] && [ -e "$backup_dir/$backup.$files_compression_suffix" ] && [ $files_force_backup -eq 0 ] 
     then
         continue
     else
@@ -297,15 +379,16 @@ do
         # Update the checksum for this backup
         echo $new_checksum > "$backup_dir/$backup.md5"
         # Create a tarball from the list of files 'liste'
-        tar --create --acls --preserve-permissions --xattrs --gzip --absolute-names \
-            --file "$backup_dir/$backup.tar.gz" \
+        tar --create --acls --preserve-permissions --xattrs --absolute-names \
+            --exclude-from "$script_dir/exclude_list" \
+            --file "$backup_dir/$backup.$files_compression_suffix" \
             --files-from "$script_dir/liste" \
-            --exclude-from "$script_dir/exclude_list"
+            --$files_compression_mode
         # Then print the size of this archive.
-        ls --size --human-readable "$backup_dir/$backup.tar.gz"
+        ls --size --human-readable "$backup_dir/$backup.$files_compression_suffix"
 
         # And add the encrypted name of this archive in the list
-        print_encrypted_name "$backup_dir$backup.tar.gz" add
+        print_encrypted_name "$backup_dir$backup.$files_compression_suffix" add
         echo ""
     fi
 
@@ -331,7 +414,7 @@ backup_checksum () {
     # Make a temporary backup
     echo ">> Make a temporary backup for $backup_name"
     sudo rm -rf "$temp_backup_dir"
-    if ! $backup_cmd --no-compress --output-directory "$temp_backup_dir" --name $backup_name.temp > /dev/null
+    if ! $backup_cmd --methods copy --output-directory "$temp_backup_dir" --name $backup_name.temp > /dev/null
     then
         # If the backup fail, do not make a real backup
         echo ">>> The temporary backup failed..."
@@ -346,7 +429,7 @@ backup_checksum () {
     # Get the previous checksum
     local old_checksum=$(cat "$backup_dir/ynh_backup/$backup_name.md5" 2> /dev/null)
     # And compare the 2 checksum
-    if [ "$new_checksum" == "$old_checksum" ]
+    if [ "$new_checksum" == "$old_checksum" ] && [ $ynh_force_backup -eq 0 ]
     then
         echo ">>> This backup is the same than the previous one"
         return 1
@@ -371,14 +454,8 @@ backup_checksum () {
         mkdir -p "$backup_dir/ynh_backup"
         print_encrypted_name "$backup_dir/ynh_backup" add
         backup_name="ynh_core_backup"
-        backup_hooks="conf_ldap conf_ssh conf_ynh_mysql conf_ssowat conf_ynh_firewall conf_ynh_certs data_mail conf_xmpp conf_nginx conf_cron conf_ynh_currenthost"
-        if [ "$(lsb_release --codename --short)" = "jessie" ]
-        then
-            backup_ignore="--ignore-apps"
-        else
-            backup_ignore=""
-        fi
-        backup_command="sudo yunohost backup create $backup_ignore --system $backup_hooks"
+        backup_hooks="conf_ldap conf_ssh conf_ssowat conf_ynh_firewall conf_ynh_certs data_mail conf_xmpp conf_nginx conf_cron conf_ynh_currenthost"
+        backup_command="sudo yunohost backup create --system $backup_hooks"
         # If the backup is different than the previous one
         if backup_checksum "$backup_command"
         then
@@ -387,18 +464,28 @@ backup_checksum () {
             sudo yunohost backup delete "$backup_name" > /dev/null 2>&1
             $backup_command --name $backup_name > /dev/null
 
-            # Add this backup to the list
-            echo "/ynh_backup/$backup_name.tar.gz" >> "$backup_dir/backup_list"
+            if [ "$ynh_compression_mode" != "none" ]
+            then
+                # Compress the backup
+                tar --create --acls --preserve-permissions --xattrs --absolute-names \
+                    --file "$backup_dir/ynh_backup/$backup_name.$ynh_compression_suffix" \
+                    --$ynh_compression_mode \
+                    /home/yunohost.backup/archives/$backup_name.{tar,info.json}
+            else
+                # Copy the backup
+                sudo cp /home/yunohost.backup/archives/$backup_name.{tar,info.json} "$backup_dir/ynh_backup/"
+            fi
 
-            # Copy the backup
-            sudo cp /home/yunohost.backup/archives/$backup_name.{tar.gz,info.json} "$backup_dir/ynh_backup/"
-            ls --size --human-readable "$backup_dir/ynh_backup/$backup_name.tar.gz"
+            # Add this backup to the list
+            echo "/ynh_backup/$backup_name.$ynh_compression_suffix" >> "$backup_dir/backup_list"
+
+            ls --size --human-readable "$backup_dir/ynh_backup/$backup_name.$ynh_compression_suffix"
 
             # And add the encrypted name of this backup in the list
-            print_encrypted_name "$backup_dir/ynh_backup/$backup_name.tar.gz" add
+            print_encrypted_name "$backup_dir/ynh_backup/$backup_name.$ynh_compression_suffix" add
         fi
         # Add this backup to the list
-        echo "/ynh_backup/$backup_name.tar.gz" >> "$backup_dir/backup_list"
+        echo "/ynh_backup/$backup_name.$ynh_compression_suffix" >> "$backup_dir/backup_list"
 
         exec_pre_post_backup "ynh_core_post_backup" "$config_file"
     fi
@@ -431,13 +518,7 @@ backup_checksum () {
             mkdir -p "$backup_dir/ynh_backup/"
             print_encrypted_name "$backup_dir/ynh_backup" add
             backup_name="${app}_backup"
-            if [ "$(lsb_release --codename --short)" = "jessie" ]
-            then
-                backup_ignore="--ignore-system"
-            else
-                backup_ignore=""
-            fi
-            backup_command="sudo BACKUP_CORE_ONLY=$do_not_backup_data yunohost backup create $backup_ignore --apps"
+            backup_command="sudo BACKUP_CORE_ONLY=$do_not_backup_data yunohost backup create --apps"
             # If the backup is different than the previous one
             if backup_checksum "$backup_command $app"
             then
@@ -446,15 +527,24 @@ backup_checksum () {
                 sudo yunohost backup delete "$backup_name" > /dev/null 2>&1
                 $backup_command $app --name $backup_name > /dev/null
 
-                # Copy the backup
-                sudo cp /home/yunohost.backup/archives/$backup_name.{tar.gz,info.json} "$backup_dir/ynh_backup/"
-                ls --size --human-readable "$backup_dir/ynh_backup/$backup_name.tar.gz"
+                if [ "$ynh_compression_mode" != "none" ]
+                then
+                    # Compress the backup
+                    tar --create --acls --preserve-permissions --xattrs --absolute-names \
+                        --file "$backup_dir/ynh_backup/$backup_name.$ynh_compression_suffix" \
+                        --$ynh_compression_mode \
+                        /home/yunohost.backup/archives/$backup_name.{tar,info.json}
+                else
+                    # Copy the backup
+                    sudo cp /home/yunohost.backup/archives/$backup_name.{tar,info.json} "$backup_dir/ynh_backup/"
+                fi
+                ls --size --human-readable "$backup_dir/ynh_backup/$backup_name.$ynh_compression_suffix"
 
                 # And add the encrypted name of this backup in the list
-                print_encrypted_name "$backup_dir/ynh_backup/$backup_name.tar.gz" add
+                print_encrypted_name "$backup_dir/ynh_backup/$backup_name.$ynh_compression_suffix" add
             fi
             # Add this backup to the list
-            echo "/ynh_backup/$backup_name.tar.gz" >> "$backup_dir/backup_list"
+            echo "/ynh_backup/$backup_name.$ynh_compression_suffix" >> "$backup_dir/backup_list"
         fi
     done <<< "$(grep "^ynh_app_backup=" "$config_file" | cut -d'=' -f2)"
 
@@ -479,13 +569,15 @@ do
     then
         echo "Remove old archive $backup"
         sudo rm -f "$backup_dir/$backup"
-        sudo rm -f "$backup_dir/$(dirname "$backup")/$(basename --suffix=.tar.gz "$backup").md5"
-        sudo rm -f "$backup_dir/$(dirname "$backup")/$(basename --suffix=.tar.gz "$backup").info.json"
+        sudo rm -f "$backup_dir/$(dirname "$backup")/$(basename --suffix=.$ynh_compression_suffix "$backup").md5"
+        sudo rm -f "$backup_dir/$(dirname "$backup")/$(basename --suffix=.$ynh_compression_suffix "$backup").info.json"
+        sudo rm -f "$backup_dir/$(dirname "$backup")/$(basename --suffix=.$files_compression_suffix "$backup").md5"
+        sudo rm -f "$backup_dir/$(dirname "$backup")/$(basename --suffix=.$files_compression_suffix "$backup").info.json"
 
         # And remove the encrypted name of this backup in the list
         print_encrypted_name "$backup_dir$backup" del
     fi
-done <<< "$(sudo find $backup_dir -name "*.tar.gz")"
+done <<< "$(sudo find $backup_dir -name "*.tar*")"
 
 # Then remove empty directories
 sudo find "$backup_dir" -type d -empty -delete -exec echo "Delete empty directory '{}'" \;
@@ -564,10 +656,10 @@ do
             if [ "${recipient_encrypt,,}" == "true" ]
             then
                 # Keep only the encrypted names
-                grep "$1.*.tar.gz" "$enc_backup_list" | sed "s/.*://"
+                grep "$1.*.tar*" "$enc_backup_list" | sed "s/.*://"
             else
                 # Or only the clear names
-                grep "$1.*.tar.gz" "$backup_dir/backup_list"
+                grep "$1.*.tar*" "$backup_dir/backup_list"
             fi
         }
 
