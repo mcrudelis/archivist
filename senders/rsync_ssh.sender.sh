@@ -97,7 +97,7 @@ comm -23 <(sort "$script_dir/../liste") <(sort "$files_list") > "$script_dir/../
 
 echo "> Copy backups files in $dest_directory."
 
-sudo rsync --archive --verbose --human-readable --stats --itemize-changes \
+sudo rsync --archive --copy-links --verbose --human-readable --stats --itemize-changes \
 	--delete-excluded --prune-empty-dirs --exclude-from="$script_dir/../exclude_list" \
 	"$backup_source/" --rsh="$ssh_command $ssh_options" $ssh_user@$ssh_host:"$dest_directory"
 
