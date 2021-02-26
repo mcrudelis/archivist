@@ -38,6 +38,14 @@ cryptpass="/file/which/contains/password"
 # none
 #   No compression
 #   Concatenation in a tar file only
+# symlink
+#   No compression
+#   Symbolic link to the YunoHost tar file from /home/yunohost.backup/archives
+#   The symbolic link is used only for the local $backup_dir of archivist.
+#   Real tar files are send to recipients.
+#
+#   This mode allow archivist to not duplicate locally the backup if not compressed.
+#   WARNING: Does not work with encryption !
 #
 # Default: gzip
 ynh_compression_mode=gzip

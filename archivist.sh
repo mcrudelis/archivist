@@ -58,6 +58,8 @@ elif [ "$ynh_compression_mode" == "xz" ]; then
     ynh_compression_suffix=tar.xz
 elif [ "$ynh_compression_mode" == "none" ]; then
     ynh_compression_suffix=tar
+elif [ "$ynh_compression_mode" == "symlink" ]; then
+    ynh_compression_suffix=tar
 else
     echo "Error: Compression format not recognized for ynh_compression_mode !"
     echo "Fall back to gzip."
@@ -464,7 +466,7 @@ backup_checksum () {
             sudo yunohost backup delete "$backup_name" > /dev/null 2>&1
             $backup_command --name $backup_name > /dev/null
 
-            if [ "$ynh_compression_mode" != "none" ]
+            if [ "$ynh_compression_mode" != "none" ] && [ "$ynh_compression_mode" != "symlink" ]
             then
                 # Compress the backup
                 tar --create --acls --preserve-permissions --xattrs --absolute-names \
@@ -472,8 +474,14 @@ backup_checksum () {
                     --$ynh_compression_mode \
                     /home/yunohost.backup/archives/$backup_name.{tar,info.json}
             else
-                # Copy the backup
-                sudo cp /home/yunohost.backup/archives/$backup_name.{tar,info.json} "$backup_dir/ynh_backup/"
+                if [ "$ynh_compression_mode" == "symlink" ]
+                then
+                    # Create a symbolic link instead of a copy of the backup
+                    sudo ln --force --symbolic /home/yunohost.backup/archives/$backup_name.{tar,info.json} "$backup_dir/ynh_backup/"
+                else # No compression
+                    # Copy the backup
+                    sudo cp --remove-destination /home/yunohost.backup/archives/$backup_name.{tar,info.json} "$backup_dir/ynh_backup/"
+                fi
             fi
 
             # Add this backup to the list
@@ -535,8 +543,14 @@ backup_checksum () {
                         --$ynh_compression_mode \
                         /home/yunohost.backup/archives/$backup_name.{tar,info.json}
                 else
-                    # Copy the backup
-                    sudo cp /home/yunohost.backup/archives/$backup_name.{tar,info.json} "$backup_dir/ynh_backup/"
+                    if [ "$ynh_compression_mode" == "symlink" ]
+                    then
+                        # Create a symbolic link instead of a copy of the backup
+                        sudo ln --force --symbolic /home/yunohost.backup/archives/$backup_name.{tar,info.json} "$backup_dir/ynh_backup/"
+                    else # No compression
+                        # Copy the backup
+                        sudo cp --remove-destination /home/yunohost.backup/archives/$backup_name.{tar,info.json} "$backup_dir/ynh_backup/"
+                    fi
                 fi
                 ls --size --human-readable "$backup_dir/ynh_backup/$backup_name.$ynh_compression_suffix"
 
@@ -565,7 +579,7 @@ while read backup
 do
     backup=${backup#$backup_dir}
     # Remove an archive if it's not in the 'backup_list'
-    if ! grep --quiet "$backup" "$backup_dir/backup_list"
+    if ! grep --quiet "$backup$" "$backup_dir/backup_list"
     then
         echo "Remove old archive $backup"
         sudo rm -f "$backup_dir/$backup"
