@@ -456,8 +456,11 @@ backup_checksum () {
         mkdir -p "$backup_dir/ynh_backup"
         print_encrypted_name "$backup_dir/ynh_backup" add
         backup_name="ynh_core_backup"
-        backup_hooks="conf_ldap conf_ssh conf_ssowat conf_ynh_firewall conf_ynh_certs data_mail conf_xmpp conf_nginx conf_cron conf_ynh_currenthost"
-        backup_command="sudo yunohost backup create --system $backup_hooks"
+        # Make a list of all backup hooks and exclude the home hook which may make huge backup.
+        # We need here a dynamic list since those hooks are changing names at each upgrade !!!
+        backup_hooks=($(ls /usr/share/yunohost/hooks/backup/ | grep --invert-match "home" | cut --delimiter=- --fields=2))
+        echo "> Backup hooks used: ${backup_hooks[@]}"
+        backup_command="sudo yunohost backup create --system ${backup_hooks[@]}"
         # If the backup is different than the previous one
         if backup_checksum "$backup_command"
         then
