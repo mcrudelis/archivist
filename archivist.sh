@@ -25,7 +25,9 @@ max_size=$(grep -m1 "^max_size=" "$config_file" | cut -d'=' -f2)
 ynh_compression_mode=$(grep -m1 "^ynh_compression_mode=" "$config_file" | cut -d'=' -f2)
 files_compression_mode=$(grep -m1 "^files_compression_mode=" "$config_file" | cut -d'=' -f2)
 
-date
+timestamp_echo () {
+    echo -e "$2$(date) $1"
+}
 
 #=================================================
 # COMPRESSION FORMAT
@@ -185,7 +187,7 @@ size_splitter () {
     fi
 }
 
-echo "> Build list of files to backup"
+timestamp_echo "> Build list of files to backup"
 
 # Build exclude list
 > "$script_dir/exclude_list"
@@ -320,7 +322,7 @@ directories_hierarchy () {
     fi
 }
 
-echo "> Compress backups"
+timestamp_echo "> Compress backups"
 
 # Purge the list of backup files
 > "$backup_dir/backup_list"
@@ -377,7 +379,7 @@ do
     then
         continue
     else
-        echo -e "\n>> Create a new backup for $backup"
+        timestamp_echo ">> Create a new backup for $backup" "\n"
         # Update the checksum for this backup
         echo $new_checksum > "$backup_dir/$backup.md5"
         # Create a tarball from the list of files 'liste'
@@ -407,19 +409,19 @@ fi
 # YUNOHOST BACKUPS
 #=================================================
 
-echo "> Backup YunoHost core and apps"
+timestamp_echo "> Backup YunoHost core and apps"
 
 # Make a temporary backup and compare the checksum with the previous backup.
 backup_checksum () {
     local backup_cmd="$1"
     local temp_backup_dir="$backup_dir/ynh_backup/temp"
     # Make a temporary backup
-    echo ">> Make a temporary backup for $backup_name"
+    timestamp_echo ">> Make a temporary backup for $backup_name"
     sudo rm -rf "$temp_backup_dir"
     if ! $backup_cmd --methods copy --output-directory "$temp_backup_dir" --name $backup_name.temp > /dev/null
     then
         # If the backup fail, do not make a real backup
-        echo ">>> The temporary backup failed..."
+        timestamp_echo ">>> The temporary backup failed..."
         return 1
     fi
     # Remove the info.json file
@@ -433,10 +435,10 @@ backup_checksum () {
     # And compare the 2 checksum
     if [ "$new_checksum" == "$old_checksum" ] && [ $ynh_force_backup -eq 0 ]
     then
-        echo ">>> This backup is the same than the previous one"
+        timestamp_echo ">>> This backup is the same than the previous one"
         return 1
     else
-        echo ">>> This backup is different than the previous one"
+        timestamp_echo ">>> This backup is different than the previous one"
         echo $new_checksum > "$backup_dir/ynh_backup/$backup_name.md5"
         return 0
     fi
@@ -459,12 +461,12 @@ backup_checksum () {
         # Make a list of all backup hooks and exclude the home hook which may make huge backup.
         # We need here a dynamic list since those hooks are changing names at each upgrade !!!
         backup_hooks=($(ls /usr/share/yunohost/hooks/backup/ | grep --invert-match "home" | cut --delimiter=- --fields=2))
-        echo "> Backup hooks used: ${backup_hooks[@]}"
+        timestamp_echo "> Backup hooks used: ${backup_hooks[@]}"
         backup_command="sudo yunohost backup create --system ${backup_hooks[@]}"
         # If the backup is different than the previous one
         if backup_checksum "$backup_command"
         then
-            echo ">> Make a real backup for $backup_name"
+            timestamp_echo ">> Make a real backup for $backup_name"
             # Make a real backup
             sudo yunohost backup delete "$backup_name" > /dev/null 2>&1
             $backup_command --name $backup_name > /dev/null
@@ -533,7 +535,7 @@ backup_checksum () {
             # If the backup is different than the previous one
             if backup_checksum "$backup_command $app"
             then
-                echo ">>>> Make a real backup for $backup_name"
+                timestamp_echo ">>>> Make a real backup for $backup_name"
                 # Make a real backup
                 sudo yunohost backup delete "$backup_name" > /dev/null 2>&1
                 $backup_command $app --name $backup_name > /dev/null
@@ -575,7 +577,7 @@ backup_checksum () {
 # REMOVE OLD BACKUPS
 #=================================================
 
-echo "> Clean old backup files"
+timestamp_echo "> Clean old backup files"
 
 # Remove old backup files
 while read backup
@@ -584,7 +586,7 @@ do
     # Remove an archive if it's not in the 'backup_list'
     if ! grep --quiet "$backup$" "$backup_dir/backup_list"
     then
-        echo "Remove old archive $backup"
+        timestamp_echo ">> Remove old archive $backup"
         sudo rm -f "$backup_dir/$backup"
         sudo rm -f "$backup_dir/$(dirname "$backup")/$(basename --suffix=.$ynh_compression_suffix "$backup").md5"
         sudo rm -f "$backup_dir/$(dirname "$backup")/$(basename --suffix=.$ynh_compression_suffix "$backup").info.json"
@@ -605,7 +607,7 @@ sudo find "$backup_dir" -type d -empty -delete -exec echo "Delete empty director
 
 if [ "${encrypt,,}" == "true" ]
 then
-    echo "> Encrypt backups"
+    timestamp_echo "> Encrypt backups"
 
     # Recreate the directory in case it doesn't exist anymore.
     mkdir -p "$enc_backup_dir"
@@ -666,7 +668,7 @@ do
         # BUILD LIST OF FILES FOR EACH RECIPIENT
         #=================================================
 
-        echo -e "\n-> Build the list of files for the recipient $(get_option_value "> recipient name")"
+        timestamp_echo "-> Build the list of files for the recipient $(get_option_value "> recipient name")" "\n"
 
         include_files () {
             # Get the corresponding files
@@ -744,5 +746,3 @@ do
     fi
 
 done <<< "$(grep --line-number "^> recipient name=" "$config_file" | cut -d':' -f1)"
-
-date
