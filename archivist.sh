@@ -458,7 +458,7 @@ backup_checksum () {
         backup_name="ynh_core_backup"
         # Make a list of all backup hooks and exclude the home hook which may make huge backup.
         # We need here a dynamic list since those hooks are changing names at each upgrade !!!
-        backup_hooks=($(ls /usr/share/yunohost/hooks/backup/ | grep --invert-match "home" | cut --delimiter=- --fields=2))
+        backup_hooks=($(ls /usr/share/yunohost/hooks/backup/ | grep --extended-regexp --invert-match "home|multimedia" | cut --delimiter=- --fields=2))
         echo "> Backup hooks used: ${backup_hooks[@]}"
         backup_command="sudo yunohost backup create --system ${backup_hooks[@]}"
         # If the backup is different than the previous one
