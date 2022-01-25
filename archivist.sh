@@ -538,7 +538,7 @@ backup_checksum () {
                 sudo yunohost backup delete "$backup_name" > /dev/null 2>&1
                 $backup_command $app --name $backup_name > /dev/null
 
-                if [ "$ynh_compression_mode" != "none" ]
+                if [ "$ynh_compression_mode" != "none" ] && [ "$ynh_compression_mode" != "symlink" ]
                 then
                     # Compress the backup
                     tar --create --acls --preserve-permissions --xattrs --absolute-names \
