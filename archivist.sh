@@ -277,9 +277,13 @@ print_encrypted_name () {
 #=================================================
 
 mount_encrypt_directory () {
-    # Encrypt the whole directory with encfs.
-    sudo encfs --reverse --idle=5 --extpass="cat \"$cryptpass\"" --standard "$backup_dir" "$enc_backup_dir"
-    # Here we will use the reverse mode of encfs, that means the directory will be encrypted only to be send via rsync.
+    # Mount the encrypted directory only if not yet mounted.
+    if ! mount | grep --quiet "$enc_backup_dir"
+    then
+        # Encrypt the whole directory with encfs.
+        sudo encfs --verbose --reverse --idle=5 --extpass="cat \"$cryptpass\"" --standard "$backup_dir" "$enc_backup_dir"
+        # Here we will use the reverse mode of encfs, that means the directory will be encrypted only to be send via rsync.
+    fi
 }
 
 if [ "${encrypt,,}" == "true" ]
@@ -611,8 +615,7 @@ then
     mkdir -p "$enc_backup_dir"
 
     # Encrypt the whole directory with encfs.
-    sudo encfs --reverse --idle=5 --extpass="cat \"$cryptpass\"" --standard "$backup_dir" "$enc_backup_dir"
-    # Here we will use the reverse mode of encfs, that means the directory will be encrypted only to be send via rsync.
+    mount_encrypt_directory
 
     # Duplicate the .encfs6.xml file
     sudo cp "$backup_dir/.encfs6.xml" "$backup_dir/.encfs6.xml.encrypted"
@@ -724,6 +727,8 @@ do
         if [ "${recipient_encrypt,,}" == "true" ]
         then
             source_path="$enc_backup_dir"
+            # Mount the encrypted directory
+            mount_encrypt_directory
         else
             source_path="$backup_dir"
         fi
