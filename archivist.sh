@@ -279,9 +279,13 @@ print_encrypted_name () {
 #=================================================
 
 mount_encrypt_directory () {
-    # Encrypt the whole directory with encfs.
-    sudo encfs --reverse --idle=5 --extpass="cat \"$cryptpass\"" --standard "$backup_dir" "$enc_backup_dir"
-    # Here we will use the reverse mode of encfs, that means the directory will be encrypted only to be send via rsync.
+    # Mount the encrypted directory only if not yet mounted.
+    if ! mount | grep --quiet "$enc_backup_dir"
+    then
+        # Encrypt the whole directory with encfs.
+        sudo encfs --reverse --idle=5 --extpass="cat \"$cryptpass\"" --standard "$backup_dir" "$enc_backup_dir"
+        # Here we will use the reverse mode of encfs, that means the directory will be encrypted only to be send via rsync.
+    fi
 }
 
 if [ "${encrypt,,}" == "true" ]
@@ -416,6 +420,7 @@ backup_checksum () {
     local backup_cmd="$1"
     local temp_backup_dir="$backup_dir/ynh_backup/temp"
     # Make a temporary backup
+    echo ""
     timestamp_echo ">> Make a temporary backup for $backup_name"
     sudo rm -rf "$temp_backup_dir"
     if ! $backup_cmd --methods copy --output-directory "$temp_backup_dir" --name $backup_name.temp > /dev/null
@@ -460,7 +465,7 @@ backup_checksum () {
         backup_name="ynh_core_backup"
         # Make a list of all backup hooks and exclude the home hook which may make huge backup.
         # We need here a dynamic list since those hooks are changing names at each upgrade !!!
-        backup_hooks=($(ls /usr/share/yunohost/hooks/backup/ | grep --invert-match "home" | cut --delimiter=- --fields=2))
+        backup_hooks=($(ls /usr/share/yunohost/hooks/backup/ | grep --extended-regexp --invert-match "home|multimedia" | cut --delimiter=- --fields=2))
         timestamp_echo "> Backup hooks used: ${backup_hooks[@]}"
         backup_command="sudo yunohost backup create --system ${backup_hooks[@]}"
         # If the backup is different than the previous one
@@ -540,7 +545,7 @@ backup_checksum () {
                 sudo yunohost backup delete "$backup_name" > /dev/null 2>&1
                 $backup_command $app --name $backup_name > /dev/null
 
-                if [ "$ynh_compression_mode" != "none" ]
+                if [ "$ynh_compression_mode" != "none" ] && [ "$ynh_compression_mode" != "symlink" ]
                 then
                     # Compress the backup
                     tar --create --acls --preserve-permissions --xattrs --absolute-names \
@@ -613,8 +618,7 @@ then
     mkdir -p "$enc_backup_dir"
 
     # Encrypt the whole directory with encfs.
-    sudo encfs --reverse --idle=5 --extpass="cat \"$cryptpass\"" --standard "$backup_dir" "$enc_backup_dir"
-    # Here we will use the reverse mode of encfs, that means the directory will be encrypted only to be send via rsync.
+    mount_encrypt_directory
 
     # Duplicate the .encfs6.xml file
     sudo cp "$backup_dir/.encfs6.xml" "$backup_dir/.encfs6.xml.encrypted"
@@ -682,6 +686,11 @@ do
             fi
         }
 
+        get_encrypted_name ()
+        {
+            grep --max-count=1 "$1\.*:" "$enc_backup_list" | sed "s/.*://"
+        }
+
         # Get the encrypt option for this recipient
         recipient_encrypt=$(get_option_value "encrypt")
         # Get the default value if there no specific option
@@ -718,7 +727,7 @@ do
         do
             delete_option "exclude backup"
             if [ -n "$exclude" ]; then
-                sed --in-place "\|$exclude|d" "$backup_list_per_recipient"
+                sed --in-place "\|$(get_encrypted_name "$exclude")|d" "$backup_list_per_recipient"
             fi
         done <<< "$(grep "^exclude backup=" "$config_file_per_recipient" | cut -d'=' -f2)"
 
@@ -726,6 +735,8 @@ do
         if [ "${recipient_encrypt,,}" == "true" ]
         then
             source_path="$enc_backup_dir"
+            # Mount the encrypted directory
+            mount_encrypt_directory
         else
             source_path="$backup_dir"
         fi
