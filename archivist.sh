@@ -418,6 +418,7 @@ backup_checksum () {
     local backup_cmd="$1"
     local temp_backup_dir="$backup_dir/ynh_backup/temp"
     # Make a temporary backup
+    echo ""
     echo ">> Make a temporary backup for $backup_name"
     sudo rm -rf "$temp_backup_dir"
     if ! $backup_cmd --methods copy --output-directory "$temp_backup_dir" --name $backup_name.temp > /dev/null
